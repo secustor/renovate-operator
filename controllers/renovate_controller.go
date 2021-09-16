@@ -109,6 +109,35 @@ func (r *RenovateReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 func (r *RenovateReconciler) createCronJob(renovate *renovatev1alpha1.Renovate) (*batchv1.CronJob, error) {
+	containerVars := []corev1.EnvVar{
+		{
+			Name:  "LOG_LEVEL",
+			Value: string(renovate.Spec.Logging.Level),
+		},
+		{
+			Name:  "RENOVATE_DRY_RUN",
+			Value: strconv.FormatBool(*renovate.Spec.DryRun),
+		},
+		{
+			Name:  "RENOVATE_BASE_DIR",
+			Value: "/tmp/renovate/",
+		},
+		{
+			Name:  "RENOVATE_AUTODISCOVER",
+			Value: "true",
+		},
+		{
+			Name:      "RENOVATE_TOKEN",
+			ValueFrom: &renovate.Spec.Platform.Token,
+		},
+	}
+	if renovate.Spec.GithubTokenSelector.Size() != 0 {
+		containerVars = append(containerVars, corev1.EnvVar{
+			Name:      "GITHUB_COM_TOKEN",
+			ValueFrom: &renovate.Spec.GithubTokenSelector,
+		})
+	}
+
 	cronJob := &batchv1.CronJob{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      renovate.Name,
@@ -144,28 +173,7 @@ func (r *RenovateReconciler) createCronJob(renovate *renovatev1alpha1.Renovate) 
 								{
 									Name:  "renovate",
 									Image: "renovate/renovate:" + renovate.Spec.RenovateVersion,
-									Env: []corev1.EnvVar{
-										{
-											Name:  "LOG_LEVEL",
-											Value: string(renovate.Spec.Logging.Level),
-										},
-										{
-											Name:  "RENOVATE_DRY_RUN",
-											Value: strconv.FormatBool(*renovate.Spec.DryRun),
-										},
-										{
-											Name:  "RENOVATE_BASE_DIR",
-											Value: "/tmp/renovate/",
-										},
-										{
-											Name:  "RENOVATE_AUTODISCOVER",
-											Value: "true",
-										},
-										{
-											Name:      "RENOVATE_TOKEN",
-											ValueFrom: &renovate.Spec.Platform.Token,
-										},
-									},
+									Env:   containerVars,
 									// TODO add config Volumes
 									VolumeMounts: []corev1.VolumeMount{
 										{
