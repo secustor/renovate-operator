@@ -15,6 +15,11 @@ spec:
 #    secretKeyRef:
 #      name: 'my-secret'
 #      key: 'githubtoken'
+  sharedCache:
+    enabled: true
+    type: redis
+    redis:
+      url: "redis://redis.redis-operator.svc.cluster.local"
   schedule: "*/10 * * * *"
   dryRun: true
   logging:

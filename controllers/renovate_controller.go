@@ -137,6 +137,12 @@ func (r *RenovateReconciler) createCronJob(renovate *renovatev1alpha1.Renovate) 
 			ValueFrom: &renovate.Spec.GithubTokenSelector,
 		})
 	}
+	if renovate.Spec.SharedCache.Enabled && renovate.Spec.SharedCache.Type == renovatev1alpha1.SharedCacheTypes_REDIS {
+		containerVars = append(containerVars, corev1.EnvVar{
+			Name:  "RENOVATE_REDIS_URL",
+			Value: renovate.Spec.SharedCache.RedisConfig.Url,
+		})
+	}
 
 	cronJob := &batchv1.CronJob{
 		ObjectMeta: metav1.ObjectMeta{

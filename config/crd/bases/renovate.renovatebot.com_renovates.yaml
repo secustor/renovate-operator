@@ -23,6 +23,9 @@ spec:
     - jsonPath: .spec.dryRun
       name: DryRun
       type: boolean
+    - jsonPath: .spec.version
+      name: Version
+      type: string
     name: v1alpha1
     schema:
       openAPIV3Schema:
@@ -236,6 +239,24 @@ spec:
                 type: object
               schedule:
                 type: string
+              sharedCache:
+                properties:
+                  enabled:
+                    type: boolean
+                  redis:
+                    properties:
+                      url:
+                        type: string
+                    required:
+                    - url
+                    type: object
+                  type:
+                    enum:
+                    - redis
+                    type: string
+                required:
+                - enabled
+                type: object
               suspend:
                 default: false
                 type: boolean

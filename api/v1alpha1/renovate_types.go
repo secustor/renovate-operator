@@ -72,6 +72,25 @@ type LoggingSettings struct {
 	Level LogLevel `json:"level,omitempty"`
 }
 
+//+kubebuilder:validation:Enum=redis
+type SharedCacheTypes string
+
+const (
+	SharedCacheTypes_REDIS = "redis"
+	//TODO add RXWX volume option
+)
+
+type SharedCacheRedisConfig struct {
+	Url string `json:"url"`
+}
+
+type SharedCache struct {
+	Enabled bool `json:"enabled"`
+
+	Type        SharedCacheTypes       `json:"type,omitempty"`
+	RedisConfig SharedCacheRedisConfig `json:"redis,omitempty"`
+}
+
 // RenovateSpec defines the desired state of Renovate
 type RenovateSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
@@ -94,6 +113,9 @@ type RenovateSpec struct {
 
 	//+kubebuilder:default:="27.7.0"
 	RenovateVersion string `json:"version,omitempty"`
+
+	//+kubebuilder:validation:Optional
+	SharedCache SharedCache `json:"sharedCache"`
 	// TODO add imageOverride
 }
 
@@ -105,8 +127,9 @@ type RenovateStatus struct {
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
-
-// Renovate is the Schema for the renovates API
+//+kubebuilder:printcolumn:name="Suspended",type=boolean,JSONPath=`.spec.suspend`
+//+kubebuilder:printcolumn:name="DryRun",type=boolean,JSONPath=`.spec.dryRun`
+//+kubebuilder:printcolumn:name="Version",type=string,JSONPath=`.spec.version`
 type Renovate struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
