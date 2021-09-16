@@ -143,7 +143,7 @@ func (r *RenovateReconciler) createCronJob(renovate *renovatev1alpha1.Renovate) 
 							Containers: []corev1.Container{
 								{
 									Name:  "renovate",
-									Image: "renovate/renovate:27.7.0",
+									Image: "renovate/renovate:" + renovate.Spec.RenovateVersion,
 									Env: []corev1.EnvVar{
 										{
 											Name:  "LOG_LEVEL",

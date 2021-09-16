@@ -3,6 +3,7 @@ kind: Renovate
 metadata:
   name: renovate-sample
 spec:
+#  version: 27.7.0
   platform:
     type: github
     endpoint: 'https://github.com/api/v3'
@@ -16,21 +17,5 @@ spec:
 #      key: 'githubtoken'
   schedule: "*/10 * * * *"
   dryRun: true
-  #  scaling:
-  #    strategy: none   # enum: [ none, filters, size, automatic ]
-  #    filters:
-  #      # autodiscover groups
-  #      - 'firstOrg/*'
-  #      - 'secondOrg/*'
-  #    size: 20
-  #  sharedCache:
-  #    type: redis # enum: [ redis ]
-  #    redis:
-  #      url: 'redis://redis'
   logging:
     level: info
-
-#  imageOverride:
-#    repository: ''
-#    name: ''
-#    tag: ''

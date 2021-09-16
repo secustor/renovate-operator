@@ -91,6 +91,9 @@ type RenovateSpec struct {
 
 	//Scaling             Scaling              `json:"scaling,omitempty"`
 	Logging LoggingSettings `json:"logging,omitempty"`
+
+	//+kubebuilder:default:="27.7.0"
+	RenovateVersion string `json:"version,omitempty"`
 	// TODO add imageOverride
 }
 
