@@ -1,0 +1,42 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  annotations:
+    alm-examples: '[]'
+    capabilities: Basic Install
+  name: renovate-operator.v0.0.0
+  namespace: placeholder
+spec:
+  apiservicedefinitions: {}
+  customresourcedefinitions: {}
+  description: test
+  displayName: RenovateBot
+  icon:
+  - base64data: ""
+    mediatype: ""
+  install:
+    spec:
+      deployments: null
+    strategy: ""
+  installModes:
+  - supported: false
+    type: OwnNamespace
+  - supported: false
+    type: SingleNamespace
+  - supported: false
+    type: MultiNamespace
+  - supported: true
+    type: AllNamespaces
+  keywords:
+  - dependency-management
+  - renovate
+  links:
+  - name: Renovate Operator
+    url: https://renovate-operator.domain
+  maintainers:
+  - email: sebastian@poxhofer.at
+    name: Sebastian Poxhofer
+  maturity: alpha
+  provider:
+    name: test
+  version: 0.0.0
