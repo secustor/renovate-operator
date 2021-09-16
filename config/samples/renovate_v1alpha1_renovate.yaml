@@ -1,0 +1,36 @@
+apiVersion: renovate.renovatebot.com/v1alpha1
+kind: Renovate
+metadata:
+  name: renovate-sample
+spec:
+  platform:
+    type: github
+    endpoint: 'https://github.com/api/v3'
+    token:
+      secretKeyRef:
+        name: 'my-secret'
+        key: 'githubtoken'
+#  githubToken:
+#    secretKeyRef:
+#      name: 'my-secret'
+#      key: 'githubtoken'
+  schedule: "*/10 * * * *"
+  dryRun: true
+  #  scaling:
+  #    strategy: none   # enum: [ none, filters, size, automatic ]
+  #    filters:
+  #      # autodiscover groups
+  #      - 'firstOrg/*'
+  #      - 'secondOrg/*'
+  #    size: 20
+  #  sharedCache:
+  #    type: redis # enum: [ redis ]
+  #    redis:
+  #      url: 'redis://redis'
+  logging:
+    level: info
+
+#  imageOverride:
+#    repository: ''
+#    name: ''
+#    tag: ''
