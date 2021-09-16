@@ -24,6 +24,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/json"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -65,11 +66,44 @@ func (r *RenovateReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{}, err
 	}
 
-	// create expected cronjob for comparison and creation
-	currentCronJob := &batchv1.CronJob{}
-	expectedCronJob, creationErr := r.createCronJob(renovateCR)
+	// coordination config map
+	currentCCM := &corev1.ConfigMap{}
+	expectedCCM, creationErr := r.createCCM(renovateCR)
 	if creationErr != nil {
 		return ctrl.Result{}, creationErr
+	}
+
+	// ensure that the CCM exists
+	err = r.Get(ctx, req.NamespacedName, currentCCM)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			if err = r.Create(ctx, expectedCCM); err != nil {
+				logging.Error(err, "Failed to create ControlConfigMap")
+				return ctrl.Result{}, err
+			}
+			logging.Info("Created ControlConfigMap")
+			return ctrl.Result{Requeue: true}, nil
+		}
+		return ctrl.Result{}, err
+	}
+
+	// update CCM if necessary
+	if !equality.Semantic.DeepDerivative(expectedCCM.Data, currentCCM.Data) {
+		logging.Info("Updating CronJob")
+		err := r.Update(ctx, expectedCCM)
+		if err != nil {
+			logging.Error(err, "Failed to update CronJob")
+			return ctrl.Result{}, err
+		}
+		logging.Info("Updated CronJob")
+		return ctrl.Result{Requeue: true}, nil
+	}
+
+	// create expected cronjob for comparison and creation
+	currentCronJob := &batchv1.CronJob{}
+	expectedCronJob, cjCreationErr := r.createCronJob(renovateCR)
+	if cjCreationErr != nil {
+		return ctrl.Result{}, cjCreationErr
 	}
 
 	// ensure cronJob exists
@@ -174,6 +208,46 @@ func (r *RenovateReconciler) createCronJob(renovate *renovatev1alpha1.Renovate) 
 										EmptyDir: &corev1.EmptyDirVolumeSource{},
 									},
 								},
+								{
+									Name: "config",
+									VolumeSource: corev1.VolumeSource{
+										EmptyDir: &corev1.EmptyDirVolumeSource{},
+									},
+								},
+								{
+									Name: "rawConfigs",
+									VolumeSource: corev1.VolumeSource{
+										ConfigMap: &corev1.ConfigMapVolumeSource{
+											LocalObjectReference: corev1.LocalObjectReference{
+												Name: renovate.Name,
+											},
+										},
+									},
+								},
+							},
+							InitContainers: []corev1.Container{
+								{
+									Name:       "templateConfig",
+									Image:      "imega/jq:1.6",
+									WorkingDir: "/tmp/rawConfigs",
+									Command:    []string{"jq"},
+									Args: []string{
+										"-s",
+										"'.[0] * .[1]'",
+										"base", "${JOB_COMPLETION_INDEX}", ">", "config.json",
+									},
+									VolumeMounts: []corev1.VolumeMount{
+										{
+											Name:      "config",
+											MountPath: "/etc/config/renovate",
+										},
+										{
+											Name:      "rawConfigs",
+											ReadOnly:  true,
+											MountPath: "/tmp/rawConfigs",
+										},
+									},
+								},
 							},
 							Containers: []corev1.Container{
 								{
@@ -185,6 +259,11 @@ func (r *RenovateReconciler) createCronJob(renovate *renovatev1alpha1.Renovate) 
 										{
 											Name:      "workdir",
 											MountPath: "/tmp/renovate/",
+										},
+										{
+											Name:      "config",
+											ReadOnly:  true,
+											MountPath: "/etc/config/renovate",
 										},
 									},
 								},
@@ -201,4 +280,33 @@ func (r *RenovateReconciler) createCronJob(renovate *renovatev1alpha1.Renovate) 
 	}
 
 	return cronJob, nil
+}
+
+func (r *RenovateReconciler) createCCM(renovate *renovatev1alpha1.Renovate) (*corev1.ConfigMap, error) {
+	baseConfig, err := json.Marshal(renovatev1alpha1.RenovateConfig{
+		Onboarding:       *renovate.Spec.RenovateAppConfig.OnBoarding,
+		PrHourlyLimit:    renovate.Spec.RenovateAppConfig.PrHourlyLimit,
+		OnboardingConfig: renovate.Spec.RenovateAppConfig.OnBoardingConfig,
+		AddLabels:        renovate.Spec.RenovateAppConfig.AddLabels,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	data := map[string]string{
+		"base": string(baseConfig),
+	}
+	// TODO
+
+	newConfigMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      renovate.Name,
+			Namespace: renovate.Namespace,
+		},
+		Data: data,
+	}
+	if err := controllerutil.SetControllerReference(renovate, newConfigMap, r.Scheme); err != nil {
+		return nil, err
+	}
+	return newConfigMap, nil
 }

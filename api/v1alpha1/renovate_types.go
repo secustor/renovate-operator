@@ -91,13 +91,36 @@ type SharedCache struct {
 	RedisConfig SharedCacheRedisConfig `json:"redis,omitempty"`
 }
 
+type RenovateAppConfig struct {
+	Platform Platform        `json:"platform"`
+	Logging  LoggingSettings `json:"logging,omitempty"`
+
+	//+kubebuilder:default:="27.7.0"
+	RenovateVersion string `json:"version,omitempty"`
+
+	//+kubebuilder:default:=false
+	DryRun *bool `json:"dryRun,omitempty"`
+
+	//+kubebuilder:default:=true
+	OnBoarding *bool `json:"onBoarding,omitempty"`
+
+	//+kubebuilder:default:="{"extends": ["config:base"]}"
+	OnBoardingConfig map[string]interface{} `json:"onBoardingConfig,omitempty,inline"`
+
+	//+kubebuilder:default:=10
+	PrHourlyLimit int `json:"prHourlyLimit,omitempty"`
+
+	AddLabels []string `json:"addLabels,omitempty"`
+
+	GithubTokenSelector v1.EnvVarSource `json:"githubToken,omitempty"`
+}
+
 // RenovateSpec defines the desired state of Renovate
 type RenovateSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	Platform            Platform        `json:"platform"`
-	GithubTokenSelector v1.EnvVarSource `json:"githubToken,omitempty"`
+	RenovateAppConfig RenovateAppConfig `json:"renovate"`
 
 	//+kubebuilder:validation:Optional
 	//+kubebuilder:default:=false
@@ -105,14 +128,8 @@ type RenovateSpec struct {
 
 	Schedule string `json:"schedule"`
 
-	//+kubebuilder:default:=false
-	DryRun *bool `json:"dryRun,omitempty"`
-
 	//Scaling             Scaling              `json:"scaling,omitempty"`
 	Logging LoggingSettings `json:"logging,omitempty"`
-
-	//+kubebuilder:default:="27.7.0"
-	RenovateVersion string `json:"version,omitempty"`
 
 	//+kubebuilder:validation:Optional
 	SharedCache SharedCache `json:"sharedCache"`
@@ -149,4 +166,13 @@ type RenovateList struct {
 
 func init() {
 	SchemeBuilder.Register(&Renovate{}, &RenovateList{})
+}
+
+type RenovateConfig struct {
+	Onboarding       bool                   `json:"onboarding"`
+	PrHourlyLimit    int                    `json:"prHourlyLimit"`
+	OnboardingConfig map[string]interface{} `json:"onboardingConfig,inline"`
+	Platform         PlatformTypes          `json:"platform"`
+	Endpoint         string                 `json:"endpoint"`
+	AddLabels        []string               `json:"addLabels"`
 }
