@@ -13,6 +13,8 @@ spec:
     kind: Renovate
     listKind: RenovateList
     plural: renovates
+    shortNames:
+    - ren
     singular: renovate
   scope: Namespaced
   versions:
@@ -20,10 +22,10 @@ spec:
     - jsonPath: .spec.suspend
       name: Suspended
       type: boolean
-    - jsonPath: .spec.dryRun
+    - jsonPath: .spec.renovate.dryRun
       name: DryRun
       type: boolean
-    - jsonPath: .spec.version
+    - jsonPath: .spec.renovate.version
       name: Version
       type: string
     name: v1alpha1
@@ -45,92 +47,7 @@ spec:
           spec:
             description: RenovateSpec defines the desired state of Renovate
             properties:
-              dryRun:
-                default: false
-                type: boolean
-              githubToken:
-                description: EnvVarSource represents a source for the value of an
-                  EnvVar.
-                properties:
-                  configMapKeyRef:
-                    description: Selects a key of a ConfigMap.
-                    properties:
-                      key:
-                        description: The key to select.
-                        type: string
-                      name:
-                        description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                          TODO: Add other useful fields. apiVersion, kind, uid?'
-                        type: string
-                      optional:
-                        description: Specify whether the ConfigMap or its key must
-                          be defined
-                        type: boolean
-                    required:
-                    - key
-                    type: object
-                  fieldRef:
-                    description: 'Selects a field of the pod: supports metadata.name,
-                      metadata.namespace, `metadata.labels[''<KEY>'']`, `metadata.annotations[''<KEY>'']`,
-                      spec.nodeName, spec.serviceAccountName, status.hostIP, status.podIP,
-                      status.podIPs.'
-                    properties:
-                      apiVersion:
-                        description: Version of the schema the FieldPath is written
-                          in terms of, defaults to "v1".
-                        type: string
-                      fieldPath:
-                        description: Path of the field to select in the specified
-                          API version.
-                        type: string
-                    required:
-                    - fieldPath
-                    type: object
-                  resourceFieldRef:
-                    description: 'Selects a resource of the container: only resources
-                      limits and requests (limits.cpu, limits.memory, limits.ephemeral-storage,
-                      requests.cpu, requests.memory and requests.ephemeral-storage)
-                      are currently supported.'
-                    properties:
-                      containerName:
-                        description: 'Container name: required for volumes, optional
-                          for env vars'
-                        type: string
-                      divisor:
-                        anyOf:
-                        - type: integer
-                        - type: string
-                        description: Specifies the output format of the exposed resources,
-                          defaults to "1"
-                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                        x-kubernetes-int-or-string: true
-                      resource:
-                        description: 'Required: resource to select'
-                        type: string
-                    required:
-                    - resource
-                    type: object
-                  secretKeyRef:
-                    description: Selects a key of a secret in the pod's namespace
-                    properties:
-                      key:
-                        description: The key of the secret to select from.  Must be
-                          a valid secret key.
-                        type: string
-                      name:
-                        description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                          TODO: Add other useful fields. apiVersion, kind, uid?'
-                        type: string
-                      optional:
-                        description: Specify whether the Secret or its key must be
-                          defined
-                        type: boolean
-                    required:
-                    - key
-                    type: object
-                type: object
               logging:
-                description: Scaling             Scaling              `json:"scaling,omitempty"`
                 properties:
                   level:
                     enum:
@@ -142,11 +59,16 @@ spec:
                     - fatal
                     type: string
                 type: object
-              platform:
+              renovate:
                 properties:
-                  endpoint:
-                    type: string
-                  token:
+                  addLabels:
+                    items:
+                      type: string
+                    type: array
+                  dryRun:
+                    default: false
+                    type: boolean
+                  githubToken:
                     description: EnvVarSource represents a source for the value of
                       an EnvVar.
                     properties:
@@ -227,15 +149,146 @@ spec:
                         - key
                         type: object
                     type: object
-                  type:
-                    enum:
-                    - github
-                    - gitlab
+                  logging:
+                    properties:
+                      level:
+                        enum:
+                        - trace
+                        - debug
+                        - info
+                        - warn
+                        - error
+                        - fatal
+                        type: string
+                    type: object
+                  onBoarding:
+                    default: true
+                    type: boolean
+                  platform:
+                    properties:
+                      endpoint:
+                        type: string
+                      token:
+                        description: EnvVarSource represents a source for the value
+                          of an EnvVar.
+                        properties:
+                          configMapKeyRef:
+                            description: Selects a key of a ConfigMap.
+                            properties:
+                              key:
+                                description: The key to select.
+                                type: string
+                              name:
+                                description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                  TODO: Add other useful fields. apiVersion, kind,
+                                  uid?'
+                                type: string
+                              optional:
+                                description: Specify whether the ConfigMap or its
+                                  key must be defined
+                                type: boolean
+                            required:
+                            - key
+                            type: object
+                          fieldRef:
+                            description: 'Selects a field of the pod: supports metadata.name,
+                              metadata.namespace, `metadata.labels[''<KEY>'']`, `metadata.annotations[''<KEY>'']`,
+                              spec.nodeName, spec.serviceAccountName, status.hostIP,
+                              status.podIP, status.podIPs.'
+                            properties:
+                              apiVersion:
+                                description: Version of the schema the FieldPath is
+                                  written in terms of, defaults to "v1".
+                                type: string
+                              fieldPath:
+                                description: Path of the field to select in the specified
+                                  API version.
+                                type: string
+                            required:
+                            - fieldPath
+                            type: object
+                          resourceFieldRef:
+                            description: 'Selects a resource of the container: only
+                              resources limits and requests (limits.cpu, limits.memory,
+                              limits.ephemeral-storage, requests.cpu, requests.memory
+                              and requests.ephemeral-storage) are currently supported.'
+                            properties:
+                              containerName:
+                                description: 'Container name: required for volumes,
+                                  optional for env vars'
+                                type: string
+                              divisor:
+                                anyOf:
+                                - type: integer
+                                - type: string
+                                description: Specifies the output format of the exposed
+                                  resources, defaults to "1"
+                                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                x-kubernetes-int-or-string: true
+                              resource:
+                                description: 'Required: resource to select'
+                                type: string
+                            required:
+                            - resource
+                            type: object
+                          secretKeyRef:
+                            description: Selects a key of a secret in the pod's namespace
+                            properties:
+                              key:
+                                description: The key of the secret to select from.  Must
+                                  be a valid secret key.
+                                type: string
+                              name:
+                                description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                  TODO: Add other useful fields. apiVersion, kind,
+                                  uid?'
+                                type: string
+                              optional:
+                                description: Specify whether the Secret or its key
+                                  must be defined
+                                type: boolean
+                            required:
+                            - key
+                            type: object
+                        type: object
+                      type:
+                        enum:
+                        - github
+                        - gitlab
+                        type: string
+                    required:
+                    - endpoint
+                    - token
+                    - type
+                    type: object
+                  prHourlyLimit:
+                    default: 10
+                    type: integer
+                  version:
+                    default: 27.7.0
                     type: string
                 required:
-                - endpoint
-                - token
-                - type
+                - platform
+                type: object
+              scaling:
+                properties:
+                  maxWorkers:
+                    default: 1
+                    description: MaxWorkers Maximum number of parallel workers to
+                      start. A single worker will only process a single batch at maximum
+                    format: int32
+                    type: integer
+                  size:
+                    description: Size if ScalingStrategy
+                    type: integer
+                  strategy:
+                    default: none
+                    enum:
+                    - none
+                    - size
+                    type: string
+                required:
+                - maxWorkers
                 type: object
               schedule:
                 type: string
@@ -260,15 +313,19 @@ spec:
               suspend:
                 default: false
                 type: boolean
-              version:
-                default: 27.7.0
-                type: string
             required:
-            - platform
+            - renovate
             - schedule
             type: object
           status:
             description: RenovateStatus defines the observed state of Renovate
+            properties:
+              discoveredDepositories:
+                items:
+                  type: string
+                type: array
+            required:
+            - discoveredDepositories
             type: object
         type: object
     served: true

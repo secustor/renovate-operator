@@ -18,6 +18,8 @@ package controllers
 
 import (
 	"context"
+	"github.com/go-logr/logr"
+	renovatev1alpha1 "github.com/secustor/renovate-operator/api/v1alpha1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -29,9 +31,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	"strconv"
-
-	renovatev1alpha1 "github.com/secustor/renovate-operator/api/v1alpha1"
 )
 
 // RenovateReconciler reconciles a Renovate object
@@ -54,7 +53,7 @@ type RenovateReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.9.2/pkg/reconcile
 func (r *RenovateReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	logging := log.FromContext(ctx).WithValues("CronJob.Namespace", req.Namespace, "CronJob.Name", req.Name)
+	logging := log.FromContext(ctx).WithValues("Namespace", req.Namespace, "Name", req.Name)
 
 	// Fetch the Renovate instance.
 	renovateCR := &renovatev1alpha1.Renovate{}
@@ -66,118 +65,99 @@ func (r *RenovateReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{}, err
 	}
 
+	if result, err := r.setupDiscovery(ctx, req, renovateCR, logging); result != nil || err != nil {
+		return *result, err
+	}
+
+	batches, err := r.createBatches(renovateCR)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	if result, err := r.setupCCM(ctx, req, renovateCR, batches, logging); result != nil || err != nil {
+		return *result, err
+	}
+
+	if result, err := r.setupExecution(ctx, req, renovateCR, batches, logging); result != nil || err != nil {
+		return *result, err
+	}
+
+	return ctrl.Result{}, nil
+}
+
+func (r *RenovateReconciler) setupCCM(ctx context.Context, req ctrl.Request, renovate *renovatev1alpha1.Renovate, batches []Batch, logging logr.Logger) (*ctrl.Result, error) {
 	// coordination config map
 	currentCCM := &corev1.ConfigMap{}
-	expectedCCM, creationErr := r.createCCM(renovateCR)
+	expectedCCM, creationErr := r.createCCM(renovate, batches)
 	if creationErr != nil {
-		return ctrl.Result{}, creationErr
+		return nil, creationErr
 	}
 
 	// ensure that the CCM exists
-	err = r.Get(ctx, req.NamespacedName, currentCCM)
+	err := r.Get(ctx, req.NamespacedName, currentCCM)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			if err = r.Create(ctx, expectedCCM); err != nil {
 				logging.Error(err, "Failed to create ControlConfigMap")
-				return ctrl.Result{}, err
+				return nil, err
 			}
 			logging.Info("Created ControlConfigMap")
-			return ctrl.Result{Requeue: true}, nil
+			return &ctrl.Result{Requeue: true}, nil
 		}
-		return ctrl.Result{}, err
+		return nil, err
 	}
 
 	// update CCM if necessary
 	if !equality.Semantic.DeepDerivative(expectedCCM.Data, currentCCM.Data) {
-		logging.Info("Updating CronJob")
+		logging.Info("Updating base config")
 		err := r.Update(ctx, expectedCCM)
 		if err != nil {
-			logging.Error(err, "Failed to update CronJob")
-			return ctrl.Result{}, err
+			logging.Error(err, "Failed to update base config")
+			return &ctrl.Result{}, err
 		}
-		logging.Info("Updated CronJob")
-		return ctrl.Result{Requeue: true}, nil
+		logging.Info("Updated base config")
+		return &ctrl.Result{Requeue: true}, nil
 	}
-
-	// create expected cronjob for comparison and creation
-	currentCronJob := &batchv1.CronJob{}
-	expectedCronJob, cjCreationErr := r.createCronJob(renovateCR)
-	if cjCreationErr != nil {
-		return ctrl.Result{}, cjCreationErr
-	}
-
-	// ensure cronJob exists
-	err = r.Get(ctx, req.NamespacedName, currentCronJob)
-	if err != nil {
-		if errors.IsNotFound(err) {
-			if err = r.Create(ctx, expectedCronJob); err != nil {
-				logging.Error(err, "Failed to create Cronjob")
-				return ctrl.Result{}, err
-			}
-			logging.Info("Created Cronjob")
-			return ctrl.Result{Requeue: true}, nil
-		}
-		return ctrl.Result{}, err
-	}
-
-	// update if necessary
-	if !equality.Semantic.DeepDerivative(expectedCronJob.Spec, currentCronJob.Spec) {
-		logging.Info("Updating CronJob")
-		err := r.Update(ctx, expectedCronJob)
-		if err != nil {
-			logging.Error(err, "Failed to update CronJob")
-			return ctrl.Result{}, err
-		}
-		logging.Info("Updated CronJob")
-		return ctrl.Result{Requeue: true}, nil
-	}
-
-	return ctrl.Result{}, nil
+	return nil, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *RenovateReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&renovatev1alpha1.Renovate{}).
+		Owns(&batchv1.CronJob{}).
+		Owns(&corev1.ConfigMap{}).
 		Complete(r)
 }
 
-func (r *RenovateReconciler) createCronJob(renovate *renovatev1alpha1.Renovate) (*batchv1.CronJob, error) {
+func (r *RenovateReconciler) createCronJob(renovate *renovatev1alpha1.Renovate, batches []Batch) (*batchv1.CronJob, error) {
 	containerVars := []corev1.EnvVar{
 		{
 			Name:  "LOG_LEVEL",
 			Value: string(renovate.Spec.Logging.Level),
 		},
 		{
-			Name:  "RENOVATE_DRY_RUN",
-			Value: strconv.FormatBool(*renovate.Spec.DryRun),
-		},
-		{
 			Name:  "RENOVATE_BASE_DIR",
 			Value: "/tmp/renovate/",
 		},
 		{
-			Name:  "RENOVATE_AUTODISCOVER",
-			Value: "true",
+			Name:  "RENOVATE_CONFIG_FILE",
+			Value: "/etc/config/renovate/config.json",
 		},
 		{
 			Name:      "RENOVATE_TOKEN",
-			ValueFrom: &renovate.Spec.Platform.Token,
+			ValueFrom: &renovate.Spec.RenovateAppConfig.Platform.Token,
 		},
 	}
-	if renovate.Spec.GithubTokenSelector.Size() != 0 {
+	if renovate.Spec.RenovateAppConfig.GithubTokenSelector.Size() != 0 {
 		containerVars = append(containerVars, corev1.EnvVar{
 			Name:      "GITHUB_COM_TOKEN",
-			ValueFrom: &renovate.Spec.GithubTokenSelector,
+			ValueFrom: &renovate.Spec.RenovateAppConfig.GithubTokenSelector,
 		})
 	}
-	if renovate.Spec.SharedCache.Enabled && renovate.Spec.SharedCache.Type == renovatev1alpha1.SharedCacheTypes_REDIS {
-		containerVars = append(containerVars, corev1.EnvVar{
-			Name:  "RENOVATE_REDIS_URL",
-			Value: renovate.Spec.SharedCache.RedisConfig.Url,
-		})
-	}
-
+	completionMode := batchv1.IndexedCompletion
+	completions := int32(len(batches))
+	parallelism := renovate.Spec.ScalingSpec.MaxWorkers
 	cronJob := &batchv1.CronJob{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      renovate.Name,
@@ -193,7 +173,9 @@ func (r *RenovateReconciler) createCronJob(renovate *renovatev1alpha1.Renovate) 
 					Namespace: renovate.Namespace,
 				},
 				Spec: batchv1.JobSpec{
-
+					CompletionMode: &completionMode,
+					Completions:    &completions,
+					Parallelism:    &parallelism,
 					Template: corev1.PodTemplateSpec{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      renovate.Name,
@@ -215,7 +197,7 @@ func (r *RenovateReconciler) createCronJob(renovate *renovatev1alpha1.Renovate) 
 									},
 								},
 								{
-									Name: "rawConfigs",
+									Name: "raw-configs",
 									VolumeSource: corev1.VolumeSource{
 										ConfigMap: &corev1.ConfigMapVolumeSource{
 											LocalObjectReference: corev1.LocalObjectReference{
@@ -227,14 +209,12 @@ func (r *RenovateReconciler) createCronJob(renovate *renovatev1alpha1.Renovate) 
 							},
 							InitContainers: []corev1.Container{
 								{
-									Name:       "templateConfig",
-									Image:      "imega/jq:1.6",
+									Name:       "template-config",
+									Image:      "dwdraju/alpine-curl-jq",
 									WorkingDir: "/tmp/rawConfigs",
-									Command:    []string{"jq"},
+									Command:    []string{"/bin/sh", "-c"},
 									Args: []string{
-										"-s",
-										"'.[0] * .[1]'",
-										"base", "${JOB_COMPLETION_INDEX}", ">", "config.json",
+										"jq -s \".[0] * .[1][$(JOB_COMPLETION_INDEX)]\" base batches > /etc/config/renovate/config.json; cat /etc/config/renovate/config.json; exit 0",
 									},
 									VolumeMounts: []corev1.VolumeMount{
 										{
@@ -242,7 +222,7 @@ func (r *RenovateReconciler) createCronJob(renovate *renovatev1alpha1.Renovate) 
 											MountPath: "/etc/config/renovate",
 										},
 										{
-											Name:      "rawConfigs",
+											Name:      "raw-configs",
 											ReadOnly:  true,
 											MountPath: "/tmp/rawConfigs",
 										},
@@ -252,7 +232,7 @@ func (r *RenovateReconciler) createCronJob(renovate *renovatev1alpha1.Renovate) 
 							Containers: []corev1.Container{
 								{
 									Name:  "renovate",
-									Image: "renovate/renovate:" + renovate.Spec.RenovateVersion,
+									Image: "renovate/renovate:" + renovate.Spec.RenovateAppConfig.RenovateVersion,
 									Env:   containerVars,
 									// TODO add config Volumes
 									VolumeMounts: []corev1.VolumeMount{
@@ -282,21 +262,36 @@ func (r *RenovateReconciler) createCronJob(renovate *renovatev1alpha1.Renovate) 
 	return cronJob, nil
 }
 
-func (r *RenovateReconciler) createCCM(renovate *renovatev1alpha1.Renovate) (*corev1.ConfigMap, error) {
-	baseConfig, err := json.Marshal(renovatev1alpha1.RenovateConfig{
-		Onboarding:       *renovate.Spec.RenovateAppConfig.OnBoarding,
-		PrHourlyLimit:    renovate.Spec.RenovateAppConfig.PrHourlyLimit,
-		OnboardingConfig: renovate.Spec.RenovateAppConfig.OnBoardingConfig,
-		AddLabels:        renovate.Spec.RenovateAppConfig.AddLabels,
-	})
+func (r *RenovateReconciler) createCCM(renovate *renovatev1alpha1.Renovate, batches []Batch) (*corev1.ConfigMap, error) {
+	config := renovatev1alpha1.RenovateConfig{
+		DryRun:        *renovate.Spec.RenovateAppConfig.DryRun,
+		Onboarding:    *renovate.Spec.RenovateAppConfig.OnBoarding,
+		PrHourlyLimit: renovate.Spec.RenovateAppConfig.PrHourlyLimit,
+		//OnboardingConfig: renovate.Spec.RenovateAppConfig.OnBoardingConfig,
+		AddLabels: renovate.Spec.RenovateAppConfig.AddLabels,
+		Platform:  renovate.Spec.RenovateAppConfig.Platform.PlatformType,
+		Endpoint:  renovate.Spec.RenovateAppConfig.Platform.Endpoint,
+	}
+	if renovate.Spec.SharedCache.Enabled && renovate.Spec.SharedCache.Type == renovatev1alpha1.SharedCacheTypes_REDIS {
+		config.RedisUrl = renovate.Spec.SharedCache.RedisConfig.Url
+	}
+
+	baseConfig, err := json.Marshal(config)
 	if err != nil {
 		return nil, err
 	}
 
-	data := map[string]string{
-		"base": string(baseConfig),
+	batchesString, err := json.Marshal(batches)
+	if err != nil {
+		return nil, err
 	}
-	// TODO
+	if err != nil {
+		return nil, err
+	}
+	data := map[string]string{
+		"base":    string(baseConfig),
+		"batches": string(batchesString),
+	}
 
 	newConfigMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
@@ -309,4 +304,88 @@ func (r *RenovateReconciler) createCCM(renovate *renovatev1alpha1.Renovate) (*co
 		return nil, err
 	}
 	return newConfigMap, nil
+}
+
+type Batch struct {
+	Repositories []renovatev1alpha1.RepositoryPath `json:"repositories"`
+}
+
+func (r *RenovateReconciler) createBatches(renovate *renovatev1alpha1.Renovate) ([]Batch, error) {
+	repositories := renovate.Status.DiscoveredRepositories
+
+	var batches []Batch
+
+	switch renovate.Spec.ScalingSpec.ScalingStrategy {
+	case renovatev1alpha1.ScalingStrategy_SIZE:
+		limit := renovate.Spec.ScalingSpec.Size
+		for i := 0; i < len(repositories); i += limit {
+			repositoryBatch := repositories[i:min(i+limit, len(repositories))]
+			batches = append(batches, Batch{Repositories: repositoryBatch})
+		}
+		break
+	case renovatev1alpha1.ScalingStrategy_NONE:
+	default:
+		batches = append(batches, Batch{Repositories: repositories})
+	}
+
+	return batches, nil
+}
+
+func (r *RenovateReconciler) setupExecution(ctx context.Context, req ctrl.Request, renovate *renovatev1alpha1.Renovate, batches []Batch, logging logr.Logger) (*ctrl.Result, error) {
+	// create expected cronjob for comparison and creation
+	currentCronJob := &batchv1.CronJob{}
+	expectedCronJob, cjCreationErr := r.createCronJob(renovate, batches)
+	if cjCreationErr != nil {
+		return &ctrl.Result{}, cjCreationErr
+	}
+
+	// ensure cronJob exists
+	err := r.Get(ctx, req.NamespacedName, currentCronJob)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			if err = r.Create(ctx, expectedCronJob); err != nil {
+				logging.Error(err, "Failed to create Cronjob")
+				return &ctrl.Result{}, err
+			}
+			logging.Info("Created Cronjob")
+			return &ctrl.Result{Requeue: true}, nil
+		}
+		return &ctrl.Result{}, err
+	}
+
+	// update if necessary
+	if !equality.Semantic.DeepDerivative(expectedCronJob.Spec, currentCronJob.Spec) {
+		logging.Info("Updating CronJob")
+		err := r.Update(ctx, expectedCronJob)
+		if err != nil {
+			logging.Error(err, "Failed to update CronJob")
+			return &ctrl.Result{}, err
+		}
+		logging.Info("Updated CronJob")
+		return &ctrl.Result{Requeue: true}, nil
+	}
+	return nil, nil
+}
+
+func (r *RenovateReconciler) setupDiscovery(ctx context.Context, req ctrl.Request, renovate *renovatev1alpha1.Renovate, logging logr.Logger) (*ctrl.Result, error) {
+	//TODO replace hardcoded
+	expectedStatus := renovatev1alpha1.RenovateStatus{DiscoveredRepositories: []renovatev1alpha1.RepositoryPath{
+		"secustor/terraform-pessimistic-version-constraint",
+		"secustor/renovate_lock_file_2",
+		"secustor/renovate-bot-testbed-apollo",
+		"secustor/renovate_terraform_lockfile",
+	}}
+	if !equality.Semantic.DeepEqual(renovate.Status, expectedStatus) {
+		renovate.Status = expectedStatus
+		_ = r.Status().Update(ctx, renovate)
+		return &ctrl.Result{}, nil
+	}
+	return nil, nil
+}
+
+func min(a, b int) int {
+	if a <= b {
+		return a
+	}
+	return b
 }
