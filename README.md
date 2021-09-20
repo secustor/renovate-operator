@@ -17,4 +17,7 @@ Supported platforms:
   - Gitlab CE & EE
 
 
+Requirements: 
+- Kubernetes: >= 1.22.0
+- 
 For CRD usage examples see [samples](./config/samples/renovate_v1alpha1_renovate.yaml)

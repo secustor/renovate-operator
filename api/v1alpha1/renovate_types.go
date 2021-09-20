@@ -181,14 +181,3 @@ type RenovateList struct {
 func init() {
 	SchemeBuilder.Register(&Renovate{}, &RenovateList{})
 }
-
-type RenovateConfig struct {
-	Onboarding    bool   `json:"onboarding"`
-	PrHourlyLimit int    `json:"prHourlyLimit"`
-	DryRun        bool   `json:"dryRun"`
-	RedisUrl      string `json:"redisUrl"`
-	//OnboardingConfig string        `json:"onboardingConfig,inline"`
-	Platform  PlatformTypes `json:"platform"`
-	Endpoint  string        `json:"endpoint"`
-	AddLabels []string      `json:"addLabels"`
-}
