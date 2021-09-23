@@ -122,12 +122,17 @@ type RenovateAppConfig struct {
 	GithubTokenSelector v1.EnvVarSource `json:"githubToken,omitempty"`
 }
 
+type RenovateDiscoveryConfig struct {
+	//+kubebuilder:validation:Optional
+	//+kubebuilder:default:="0 */2 * * *"
+	Schedule string `json:"schedule"`
+}
+
 // RenovateSpec defines the desired state of Renovate
 type RenovateSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
 	RenovateAppConfig RenovateAppConfig `json:"renovate"`
+
+	RenovateDiscoveryConfig RenovateDiscoveryConfig `json:"discovery,omitempty"`
 
 	//+kubebuilder:validation:Optional
 	//+kubebuilder:default:=false
@@ -161,6 +166,7 @@ type RenovateStatus struct {
 //+kubebuilder:printcolumn:name="Suspended",type=boolean,JSONPath=`.spec.suspend`
 //+kubebuilder:printcolumn:name="DryRun",type=boolean,JSONPath=`.spec.renovate.dryRun`
 //+kubebuilder:printcolumn:name="Version",type=string,JSONPath=`.spec.renovate.version`
+//Renovate crd object
 type Renovate struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

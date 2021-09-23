@@ -74,6 +74,7 @@ func (r *RenovateReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return *result, err
 	}
 
+	//TODO remove unexpected resources
 	return ctrl.Result{}, nil
 }
 

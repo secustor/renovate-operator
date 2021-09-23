@@ -2,6 +2,7 @@ package reconcile
 
 import (
 	"context"
+	"path/filepath"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -9,6 +10,23 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/secustor/renovate-operator/api/v1alpha1"
 	ctrl "sigs.k8s.io/controller-runtime"
+)
+
+const (
+	DirRenovateBase   = "/tmp/renovate"
+	DirRenovateConfig = "/etc/config/renovate"
+	DirRawConfig      = "/tmp/rawConfigs"
+)
+
+const (
+	VolumeConfig    = "config"
+	VolumeRawConfig = "raw-config"
+	VolumeWorkDir   = "workdir"
+)
+
+var (
+	FileRenovateConfig       = filepath.Join(DirRenovateConfig, "config.json")
+	FileRenovateConfigOutput = filepath.Join(DirRawConfig, "config.json")
 )
 
 type Parameters struct {

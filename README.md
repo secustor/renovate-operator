@@ -19,5 +19,6 @@ Supported platforms:
 
 Requirements: 
 - Kubernetes: >= 1.22.0
-- 
+- Renovate >= 27.15.0   
+
 For CRD usage examples see [samples](./config/samples/renovate_v1alpha1_renovate.yaml)

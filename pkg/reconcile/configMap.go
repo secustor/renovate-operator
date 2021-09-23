@@ -75,8 +75,8 @@ func createCCM(parameter Parameters, batches []scaling.Batch) (*corev1.ConfigMap
 		return nil, err
 	}
 	data := map[string]string{
-		"base":    string(baseConfig),
-		"batches": string(batchesString),
+		"renovate.json": string(baseConfig),
+		"batches":       string(batchesString),
 	}
 
 	newConfigMap := &corev1.ConfigMap{
