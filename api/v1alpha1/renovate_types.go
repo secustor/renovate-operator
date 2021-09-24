@@ -103,7 +103,7 @@ type RenovateAppConfig struct {
 	Platform Platform        `json:"platform"`
 	Logging  LoggingSettings `json:"logging,omitempty"`
 
-	//+kubebuilder:default:="27.7.0"
+	//+kubebuilder:default:="27.15.0"
 	RenovateVersion string `json:"version,omitempty"`
 
 	//+kubebuilder:default:=false

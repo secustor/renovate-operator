@@ -26,7 +26,7 @@ const (
 
 var (
 	FileRenovateConfig       = filepath.Join(DirRenovateConfig, "config.json")
-	FileRenovateConfigOutput = filepath.Join(DirRawConfig, "config.json")
+	FileRenovateConfigOutput = filepath.Join(DirRenovateBase, "repositories.json")
 )
 
 type Parameters struct {

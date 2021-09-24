@@ -1,9 +1,8 @@
 package reconcile
 
 import (
-	"path/filepath"
-
 	"github.com/secustor/renovate-operator/api/v1alpha1"
+	shipperconfig "github.com/secustor/renovate-operator/cmd/shipper/config"
 	"github.com/secustor/renovate-operator/pkg/metadata"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -48,34 +47,26 @@ func createDiscoveryJobSpec(renovateCR v1alpha1.Renovate) batchv1.JobSpec {
 		Template: corev1.PodTemplateSpec{
 			Spec: corev1.PodSpec{
 				RestartPolicy: corev1.RestartPolicyNever,
-				Volumes: append(renovateStandardVolumes(renovateCR), //TODO fix volumes
-					corev1.Volume{
-						Name: VolumeRawConfig,
-						VolumeSource: corev1.VolumeSource{
-							ConfigMap: &corev1.ConfigMapVolumeSource{
-								LocalObjectReference: corev1.LocalObjectReference{
-									Name: renovateCR.Name,
-								},
-							},
-						},
-					}),
+				Volumes:       renovateStandardVolumes(renovateCR),
 				InitContainers: []corev1.Container{
-					renovateContainer(renovateCR, []string{"--write-discovered-repos", filepath.Join(DirRenovateBase, "repositories.json")}),
+					renovateContainer(renovateCR, []string{"--write-discovered-repos", FileRenovateConfigOutput}),
 				},
-				Containers: []corev1.Container{ //TODO replace with custom program
+				Containers: []corev1.Container{
 					{
-						Name:       "template-config",
-						Image:      "dwdraju/alpine-curl-jq", //TODO use pinned image
-						WorkingDir: DirRawConfig,
-						Command:    []string{"/bin/sh", "-c"},
-						Args: []string{
-							"jq -s \".[0] * .[1][$(JOB_COMPLETION_INDEX)]\" renovate.json batches > " + FileRenovateConfigOutput + "; cat " + FileRenovateConfigOutput + "; exit 0",
-						},
-						VolumeMounts: []corev1.VolumeMount{
+						Name:  "shipper",
+						Image: "localhost/shipper:latest", //TODO use pinned image
+						Env: []corev1.EnvVar{
 							{
-								Name:      VolumeWorkDir,
-								ReadOnly:  true,
-								MountPath: DirRenovateBase,
+								Name:  shipperconfig.EnvRenovateCrName,
+								Value: renovateCR.Name,
+							},
+							{
+								Name:  shipperconfig.EnvRenovateCrNamespace,
+								Value: renovateCR.Namespace,
+							},
+							{
+								Name:  shipperconfig.EnvRenovateOutputFile,
+								Value: FileRenovateConfigOutput,
 							},
 						},
 					},
