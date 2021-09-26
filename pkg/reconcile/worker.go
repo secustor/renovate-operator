@@ -29,7 +29,9 @@ func createWorkerCronJob(parameter Parameters, batches []scaling.Batch) (*batchv
 					Template: corev1.PodTemplateSpec{
 						Spec: corev1.PodSpec{
 							RestartPolicy: corev1.RestartPolicyNever,
-							Volumes: append(renovateStandardVolumes(renovateCR),
+							Volumes: append(renovateStandardVolumes(renovateCR, corev1.VolumeSource{
+								EmptyDir: &corev1.EmptyDirVolumeSource{},
+							}),
 								corev1.Volume{
 									Name: VolumeRawConfig,
 									VolumeSource: corev1.VolumeSource{
@@ -47,7 +49,7 @@ func createWorkerCronJob(parameter Parameters, batches []scaling.Batch) (*batchv
 									WorkingDir: DirRawConfig,
 									Command:    []string{"/bin/sh", "-c"},
 									Args: []string{
-										"jq -s \".[0] * .[1][$(JOB_COMPLETION_INDEX)]\" base batches > " + FileRenovateConfig + "; cat " + FileRenovateConfig + "; exit 0",
+										"jq -s \".[0] * .[1][$(JOB_COMPLETION_INDEX)]\" renovate.json batches > " + FileRenovateConfig + "; cat " + FileRenovateConfig + "; exit 0",
 									},
 									VolumeMounts: []corev1.VolumeMount{
 										{
@@ -63,7 +65,7 @@ func createWorkerCronJob(parameter Parameters, batches []scaling.Batch) (*batchv
 								},
 							},
 							Containers: []corev1.Container{
-								renovateContainer(renovateCR, []string{}),
+								renovateContainer(renovateCR, []corev1.EnvVar{}, []string{}),
 							},
 						},
 					},

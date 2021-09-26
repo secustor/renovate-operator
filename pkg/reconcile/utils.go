@@ -5,12 +5,12 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-func renovateContainer(renovate renovatev1alpha1.Renovate, additionalArgs []string) corev1.Container {
+func renovateContainer(renovate renovatev1alpha1.Renovate, additionalEnVars []corev1.EnvVar, additionalArgs []string) corev1.Container {
 	return corev1.Container{
 		Name:  "renovate",
 		Image: renovateContainerImage(renovate),
 		Args:  additionalArgs,
-		Env:   renovateEnvVars(renovate),
+		Env:   append(renovateEnvVars(renovate), additionalEnVars...),
 		VolumeMounts: []corev1.VolumeMount{
 			{
 				Name:      VolumeWorkDir,
@@ -57,7 +57,7 @@ func renovateContainerImage(renovate renovatev1alpha1.Renovate) string {
 	return "renovate/renovate:" + renovate.Spec.RenovateAppConfig.RenovateVersion
 }
 
-func renovateStandardVolumes(renovate renovatev1alpha1.Renovate) []corev1.Volume {
+func renovateStandardVolumes(renovate renovatev1alpha1.Renovate, volumeConfigVolumeSource corev1.VolumeSource) []corev1.Volume {
 	return []corev1.Volume{
 		{
 			Name: VolumeWorkDir,
@@ -66,10 +66,8 @@ func renovateStandardVolumes(renovate renovatev1alpha1.Renovate) []corev1.Volume
 			},
 		},
 		{
-			Name: VolumeConfig,
-			VolumeSource: corev1.VolumeSource{
-				EmptyDir: &corev1.EmptyDirVolumeSource{},
-			},
+			Name:         VolumeConfig,
+			VolumeSource: volumeConfigVolumeSource,
 		},
 	}
 }

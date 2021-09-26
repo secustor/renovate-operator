@@ -38,7 +38,7 @@ BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
 # Image URL to use all building/pushing image targets
 IMG ?= controller:latest
 
-SHIPPER-IMG ?= shipper:latest
+SHIPPER-IMG ?= docker.io/library/shipper:0.2.0
 
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
 CRD_OPTIONS ?= "crd:trivialVersions=true,preserveUnknownFields=false"
@@ -209,3 +209,7 @@ catalog-push: ## Push a catalog image.
 .PHONY: shipper-docker-build
 shipper-docker-build:
 	docker build -t ${SHIPPER-IMG} -f Shipper.Dockerfile .
+
+.PHONY: install-test-resources
+install-test-resources:
+	helmsman -f hack/helmsman/kind.yaml -apply

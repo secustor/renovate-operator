@@ -25,7 +25,7 @@ const (
 )
 
 var (
-	FileRenovateConfig       = filepath.Join(DirRenovateConfig, "config.json")
+	FileRenovateConfig       = filepath.Join(DirRenovateConfig, "renovate.json")
 	FileRenovateConfigOutput = filepath.Join(DirRenovateBase, "repositories.json")
 )
 
