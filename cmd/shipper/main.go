@@ -82,14 +82,14 @@ func main() {
 		panic(err.Error())
 	}
 
-	var repositories []renovatev1alpha1.RepositoryPath
+	repositories := &[]renovatev1alpha1.RepositoryPath{}
 	err = json.Unmarshal(readBytes, repositories)
 	if err != nil {
 		logging.Error(err, "Failed to unmarshal json")
 		panic(err.Error())
 	}
 
-	renovateCR.Status.DiscoveredRepositories = repositories
+	renovateCR.Status.DiscoveredRepositories = *repositories
 	err = cl.Status().Update(ctx, renovateCR)
 	if err != nil {
 		logging.Error(err, "Failed to update status of Renovate instance")

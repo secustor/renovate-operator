@@ -57,6 +57,7 @@ spec:
               logging:
                 properties:
                   level:
+                    default: info
                     enum:
                     - trace
                     - debug
@@ -65,6 +66,8 @@ spec:
                     - error
                     - fatal
                     type: string
+                required:
+                - level
                 type: object
               renovate:
                 properties:
@@ -155,18 +158,6 @@ spec:
                         required:
                         - key
                         type: object
-                    type: object
-                  logging:
-                    properties:
-                      level:
-                        enum:
-                        - trace
-                        - debug
-                        - info
-                        - warn
-                        - error
-                        - fatal
-                        type: string
                     type: object
                   onBoarding:
                     default: true

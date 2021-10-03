@@ -3,36 +3,35 @@ kind: Renovate
 metadata:
   name: renovate-sample
 spec:
-  suspend: true
-  schedule: "*/30 * * * *"
+  suspend: false
+  schedule: "0 * * * *"
+  logging:
+    level: debug
   renovate:
-    #  version: 27.7.0
+    #  version: 27.15.0
     dryRun: true
     platform:
       type: github
-      endpoint: 'https://github.com/api/v3'
+      endpoint: 'https://api.github.com/'
       token:
         secretKeyRef:
           name: 'my-secret'
           key: 'githubtoken'
-    logging:
-      level: info
-    sharedCache:
-      enabled: true
-      type: redis
-      redis:
-        url: "redis://redis.redis-operator.svc.cluster.local"
-
+  sharedCache:
+    enabled: true
+    type: redis
+    redis:
+      url: "redis://redis.redis-operator.svc.cluster.local"
+  scaling:
+    strategy: size   # enum: [ none, size, ]
+    size: 15
+    maxWorkers: 5
+  discovery:
+    schedule: "30 * * * *"
   #  githubToken:
   #    secretKeyRef:
   #      name: 'my-secret'
   #      key: 'githubtoken'
-  #  scaling:
-  #    strategy: none   # enum: [ none, filters, size, automatic ]
-  #    filters:
-  #      # autodiscover groups
-  #      - 'firstOrg/*'
-  #      - 'secondOrg/*'
   #    size: 20
   #  sharedCache:
   #    type: redis # enum: [ redis ]

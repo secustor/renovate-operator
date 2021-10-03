@@ -77,7 +77,8 @@ const (
 )
 
 type LoggingSettings struct {
-	Level LogLevel `json:"level,omitempty"`
+	//+kubebuilder:default=info
+	Level LogLevel `json:"level"`
 }
 
 //+kubebuilder:validation:Enum=redis
@@ -100,8 +101,7 @@ type SharedCache struct {
 }
 
 type RenovateAppConfig struct {
-	Platform Platform        `json:"platform"`
-	Logging  LoggingSettings `json:"logging,omitempty"`
+	Platform Platform `json:"platform"`
 
 	//+kubebuilder:default:="27.15.0"
 	RenovateVersion string `json:"version,omitempty"`
@@ -140,7 +140,8 @@ type RenovateSpec struct {
 
 	Schedule string `json:"schedule"`
 
-	Logging LoggingSettings `json:"logging,omitempty"`
+	//+kubebuilder:validation:Optional
+	Logging LoggingSettings `json:"logging"`
 
 	//+kubebuilder:validation:Optional
 	SharedCache SharedCache `json:"sharedCache"`

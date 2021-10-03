@@ -36,9 +36,11 @@ type RenovateReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-//+kubebuilder:rbac:groups=renovate.renovatebot.com,resources=renovates,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=renovate.renovatebot.com,resources=renovates/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=renovate.renovatebot.com,resources=renovates/finalizers,verbs=update
+//+kubebuilder:rbac:groups=renovate.renovatebot.com,resources=*,verbs=get;list;watch;create;update;patch;delete
+
+//+kubebuilder:rbac:groups="",resources=serviceaccounts;configmaps,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups="batch",resources=cronjobs,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups="rbac.authorization.k8s.io",resources=roles;rolebindings,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.

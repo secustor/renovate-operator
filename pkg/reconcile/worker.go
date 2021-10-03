@@ -82,7 +82,7 @@ func createWorkerCronJob(parameter Parameters, batches []scaling.Batch) (*batchv
 }
 
 func SetupWorker(parameters Parameters, batches []scaling.Batch) (*controllerruntime.Result, error) {
-	logging := parameters.Logger.WithValues("cronJob", metadata.WorkerName(parameters.Req))
+	logging := parameters.Logger
 	// create expected cronjob for comparison and creation
 	expectedCronJob, cjCreationErr := createWorkerCronJob(parameters, batches)
 	if cjCreationErr != nil {

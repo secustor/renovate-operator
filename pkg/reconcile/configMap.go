@@ -70,13 +70,17 @@ func createCCM(parameter Parameters, batches []scaling.Batch) (*corev1.ConfigMap
 		return nil, err
 	}
 
-	batchesString, err := json.Marshal(batches)
-	if err != nil {
-		return nil, err
-	}
 	data := map[string]string{
 		"renovate.json": string(baseConfig),
-		"batches":       string(batchesString),
+	}
+
+	// if batches could be retrieved add them
+	if batches != nil {
+		batchesString, err := json.Marshal(batches)
+		if err != nil {
+			return nil, err
+		}
+		data["batches"] = string(batchesString)
 	}
 
 	newConfigMap := &corev1.ConfigMap{

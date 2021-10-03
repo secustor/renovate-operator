@@ -13,30 +13,52 @@ import (
 )
 
 func SetupDiscovery(parameters Parameters) (*controllerruntime.Result, error) {
-	logging := parameters.Logger.WithValues("cronJob", metadata.DiscoveryName(parameters.Req))
+	logging := parameters.Logger
 
-	//TODO implement RBAC
-	expcectedServiceAccount := corev1.ServiceAccount{
-		ObjectMeta: metadata.GenericMetaData(parameters.Req),
+	// ServiceAccount
+	expectedServiceAccount, err := createServiceAccount(parameters)
+	if err != nil {
+		return nil, err
+	}
+	if result, reconcileErr := reconcileServiceAccount(parameters.Ctx, parameters.Client, expectedServiceAccount, logging); result != nil || err != nil {
+		return result, reconcileErr
 	}
 
-	expectedRole := rbacv1.Role{
-		ObjectMeta: metadata.GenericMetaData(parameters.Req),
-		Rules: []rbacv1.PolicyRule{
-			{
-				Verbs:     v1.Verbs{"get", "list", "update", "patch"},
-				APIGroups: []string{v1alpha1.GroupVersion.String()},
-			},
-		},
+	// Role
+	expectedRole, err := createRole(parameters)
+	if err != nil {
+		return nil, err
+	}
+	if result, reconcileErr := reconcileRole(parameters.Ctx, parameters.Client, expectedRole, logging); result != nil || err != nil {
+		return result, reconcileErr
 	}
 
+	// RoleBinding
 	expectedRoleBinding := rbacv1.RoleBinding{
 		ObjectMeta: metadata.GenericMetaData(parameters.Req),
-		Subjects:   []rbacv1.Subject{},
-		RoleRef:    rbacv1.RoleRef{},
+		Subjects: []rbacv1.Subject{
+			{
+				Kind:      "ServiceAccount", //TODO replace with dynamic call?
+				APIGroup:  expectedServiceAccount.GroupVersionKind().Group,
+				Name:      expectedServiceAccount.Name,
+				Namespace: expectedServiceAccount.Namespace,
+			},
+		},
+		RoleRef: rbacv1.RoleRef{
+			Kind:     "Role", //TODO replace with dynamic call?
+			APIGroup: expectedRole.GroupVersionKind().Group,
+			Name:     expectedRole.Name,
+		},
+	}
+	if err := controllerutil.SetControllerReference(&parameters.RenovateCR, &expectedRole, parameters.Scheme); err != nil {
+		return nil, err
+	}
+	if result, reconcileErr := reconcileRoleBinding(parameters.Ctx, parameters.Client, &expectedRoleBinding, logging); result != nil || err != nil {
+		return result, reconcileErr
 	}
 
-	jobSpec := createDiscoveryJobSpec(parameters.RenovateCR)
+	// Cronjob
+	jobSpec := createDiscoveryJobSpec(parameters.RenovateCR, expectedServiceAccount.Name)
 
 	expectedCronJob, cjCreationErr := createDiscoveryCronJob(parameters, jobSpec)
 	if cjCreationErr != nil {
@@ -44,6 +66,35 @@ func SetupDiscovery(parameters Parameters) (*controllerruntime.Result, error) {
 	}
 
 	return reconcileCronjob(parameters.Ctx, parameters.Client, expectedCronJob, logging)
+}
+
+func createRole(parameters Parameters) (rbacv1.Role, error) {
+	expectedRole := rbacv1.Role{
+		ObjectMeta: metadata.GenericMetaData(parameters.Req),
+		Rules: []rbacv1.PolicyRule{
+			{
+				Resources: []string{rbacv1.ResourceAll},
+				Verbs:     v1.Verbs{"get", "list", "update", "patch"},
+				APIGroups: []string{v1alpha1.GroupVersion.Group},
+			},
+		},
+	}
+
+	if err := controllerutil.SetControllerReference(&parameters.RenovateCR, &expectedRole, parameters.Scheme); err != nil {
+		return rbacv1.Role{}, err
+	}
+	return expectedRole, nil
+}
+
+func createServiceAccount(parameters Parameters) (corev1.ServiceAccount, error) {
+	expectedServiceAccount := corev1.ServiceAccount{
+		ObjectMeta: metadata.GenericMetaData(parameters.Req),
+	}
+
+	if err := controllerutil.SetControllerReference(&parameters.RenovateCR, &expectedServiceAccount, parameters.Scheme); err != nil {
+		return corev1.ServiceAccount{}, err
+	}
+	return expectedServiceAccount, nil
 }
 
 func createDiscoveryCronJob(parameters Parameters, jobSpec batchv1.JobSpec) (*batchv1.CronJob, error) {
@@ -65,11 +116,12 @@ func createDiscoveryCronJob(parameters Parameters, jobSpec batchv1.JobSpec) (*ba
 	return &cronJob, nil
 }
 
-func createDiscoveryJobSpec(renovateCR v1alpha1.Renovate) batchv1.JobSpec {
+func createDiscoveryJobSpec(renovateCR v1alpha1.Renovate, serviceAccountName string) batchv1.JobSpec {
 	return batchv1.JobSpec{
 		Template: corev1.PodTemplateSpec{
 			Spec: corev1.PodSpec{
-				RestartPolicy: corev1.RestartPolicyNever,
+				ServiceAccountName: serviceAccountName,
+				RestartPolicy:      corev1.RestartPolicyNever,
 				Volumes: renovateStandardVolumes(renovateCR, corev1.VolumeSource{
 					ConfigMap: &corev1.ConfigMapVolumeSource{
 						LocalObjectReference: corev1.LocalObjectReference{
@@ -88,7 +140,7 @@ func createDiscoveryJobSpec(renovateCR v1alpha1.Renovate) batchv1.JobSpec {
 				Containers: []corev1.Container{
 					{
 						Name:  "shipper",
-						Image: "shipper:0.2.0", //TODO allow overwrite
+						Image: "shipper:0.1.0", //TODO allow overwrite
 						Env: []corev1.EnvVar{
 							{
 								Name:  shipperconfig.EnvRenovateCrName,
@@ -101,6 +153,12 @@ func createDiscoveryJobSpec(renovateCR v1alpha1.Renovate) batchv1.JobSpec {
 							{
 								Name:  shipperconfig.EnvRenovateOutputFile,
 								Value: FileRenovateConfigOutput,
+							},
+						},
+						VolumeMounts: []corev1.VolumeMount{
+							{
+								Name:      VolumeWorkDir,
+								MountPath: DirRenovateBase,
 							},
 						},
 					},

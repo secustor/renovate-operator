@@ -87,7 +87,6 @@ func (in *Renovate) DeepCopyObject() runtime.Object {
 func (in *RenovateAppConfig) DeepCopyInto(out *RenovateAppConfig) {
 	*out = *in
 	in.Platform.DeepCopyInto(&out.Platform)
-	out.Logging = in.Logging
 	if in.DryRun != nil {
 		in, out := &in.DryRun, &out.DryRun
 		*out = new(bool)
