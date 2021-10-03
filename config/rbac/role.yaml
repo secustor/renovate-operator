@@ -7,9 +7,35 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
-  - renovate.renovatebot.com
+  - ""
   resources:
-  - renovates
+  - configmaps
+  - serviceaccounts
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - batch
+  resources:
+  - cronjobs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - rolebindings
+  - roles
   verbs:
   - create
   - delete
@@ -21,14 +47,12 @@ rules:
 - apiGroups:
   - renovate.renovatebot.com
   resources:
-  - renovates/finalizers
+  - '*'
   verbs:
-  - update
-- apiGroups:
-  - renovate.renovatebot.com
-  resources:
-  - renovates/status
-  verbs:
+  - create
+  - delete
   - get
+  - list
   - patch
   - update
+  - watch

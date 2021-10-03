@@ -36,11 +36,14 @@ IMAGE_TAG_BASE ?= renovatebot.com/renovate-operator
 BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
 
 # Image URL to use all building/pushing image targets
-IMG ?= controller:latest
+IMG ?= docker.io/library/controller:0.1.0
+
+SHIPPER-IMG ?= docker.io/library/shipper:0.1.0
+
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
 CRD_OPTIONS ?= "crd:trivialVersions=true,preserveUnknownFields=false"
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.21
+ENVTEST_K8S_VERSION = 1.22
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -82,7 +85,7 @@ generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
 
 fmt: ## Run go fmt against code.
-	go fmt ./...
+	goimports -w .
 
 vet: ## Run go vet against code.
 	go vet ./...
@@ -201,3 +204,12 @@ catalog-build: opm ## Build a catalog image.
 .PHONY: catalog-push
 catalog-push: ## Push a catalog image.
 	$(MAKE) docker-push IMG=$(CATALOG_IMG)
+
+# Shipper
+.PHONY: shipper-docker-build
+shipper-docker-build:
+	docker build -t ${SHIPPER-IMG} -f Shipper.Dockerfile .
+
+.PHONY: install-test-resources
+install-test-resources:
+	helmsman -f hack/helmsman/kind.yaml -apply

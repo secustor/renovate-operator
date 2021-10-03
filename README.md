@@ -8,6 +8,7 @@ Supported features:
   - DryRun mode
   - Suspend execution
   - Shared redis cache
+  - Multi Worker setup
 
 Supported platforms:
   - Github
@@ -16,4 +17,8 @@ Supported platforms:
   - Gitlab CE & EE
 
 
-For CRD usage examples see ./config/samples/renovate_v1alpha1_renovate.yaml
+Requirements: 
+- Kubernetes: >= 1.22.0
+- Renovate >= 27.15.0   
+
+For CRD usage examples see [samples](./config/samples/renovate_v1alpha1_renovate.yaml)

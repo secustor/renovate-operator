@@ -24,26 +24,34 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-//type ScalingStrategy string
-//
-//const (
-//	ScalingStrategy_NONE      = "none"
-//	ScalingStrategy_FILTERS   = "filters"
-//	ScalingStrategy_SIZE      = "size"
-//	ScalingStrategy_AUTOMATIC = "automatic"
-//)
-//
-//type Scaling struct {
-//	ScalingStrategy ScalingStrategy `json:"strategy,omitempty"`
-//	Filters         []string        `json:"filters,omitempty"`
-//	Size            int             `json:"size,omitempty"`
-//	// TODO add shared cache
-//
-//}
+type ScalingStrategy string
+
+const (
+	//ScalingStrategy_NONE A single batch be created and no parallelization will take place
+	ScalingStrategy_NONE = "none"
+	//ScalingStrategy_SIZE Create batches based on number of repositories. If 30 repositories have been found and size
+	//is defined as 10, then 3 batches will be created.
+	ScalingStrategy_SIZE = "size"
+	//ScalingStrategy_FILTERS   = "filters"
+	//ScalingStrategy_AUTOMATIC = "automatic"
+)
+
+type ScalingSpec struct {
+	//+kubebuilder:validation:Enum=none;size
+	//+kubebuilder:default:="none"
+	ScalingStrategy ScalingStrategy `json:"strategy,omitempty"`
+
+	//MaxWorkers Maximum number of parallel workers to start. A single worker will only process a single batch at maximum
+	//+kubebuilder:default:=1
+	MaxWorkers int32 `json:"maxWorkers"`
+
+	//Size if ScalingStrategy
+	Size int `json:"size,omitempty"`
+}
 
 type Platform struct {
 	PlatformType PlatformTypes   `json:"type"`
-	Endpoint     string          `json:"endpoint,string"`
+	Endpoint     string          `json:"endpoint"`
 	Token        v1.EnvVarSource `json:"token"`
 }
 
@@ -69,7 +77,8 @@ const (
 )
 
 type LoggingSettings struct {
-	Level LogLevel `json:"level,omitempty"`
+	//+kubebuilder:default=info
+	Level LogLevel `json:"level"`
 }
 
 //+kubebuilder:validation:Enum=redis
@@ -91,13 +100,39 @@ type SharedCache struct {
 	RedisConfig SharedCacheRedisConfig `json:"redis,omitempty"`
 }
 
+type RenovateAppConfig struct {
+	Platform Platform `json:"platform"`
+
+	//+kubebuilder:default:="27.15.0"
+	RenovateVersion string `json:"version,omitempty"`
+
+	//+kubebuilder:default:=false
+	DryRun *bool `json:"dryRun,omitempty"`
+
+	//+kubebuilder:default:=true
+	OnBoarding *bool `json:"onBoarding,omitempty"`
+
+	//OnBoardingConfig object `json:"onBoardingConfig,omitempty,inline"`
+
+	//+kubebuilder:default:=10
+	PrHourlyLimit int `json:"prHourlyLimit,omitempty"`
+
+	AddLabels []string `json:"addLabels,omitempty"`
+
+	GithubTokenSelector v1.EnvVarSource `json:"githubToken,omitempty"`
+}
+
+type RenovateDiscoveryConfig struct {
+	//+kubebuilder:validation:Optional
+	//+kubebuilder:default:="0 */2 * * *"
+	Schedule string `json:"schedule"`
+}
+
 // RenovateSpec defines the desired state of Renovate
 type RenovateSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	RenovateAppConfig RenovateAppConfig `json:"renovate"`
 
-	Platform            Platform        `json:"platform"`
-	GithubTokenSelector v1.EnvVarSource `json:"githubToken,omitempty"`
+	RenovateDiscoveryConfig RenovateDiscoveryConfig `json:"discovery,omitempty"`
 
 	//+kubebuilder:validation:Optional
 	//+kubebuilder:default:=false
@@ -105,31 +140,34 @@ type RenovateSpec struct {
 
 	Schedule string `json:"schedule"`
 
-	//+kubebuilder:default:=false
-	DryRun *bool `json:"dryRun,omitempty"`
-
-	//Scaling             Scaling              `json:"scaling,omitempty"`
-	Logging LoggingSettings `json:"logging,omitempty"`
-
-	//+kubebuilder:default:="27.7.0"
-	RenovateVersion string `json:"version,omitempty"`
+	//+kubebuilder:validation:Optional
+	Logging LoggingSettings `json:"logging"`
 
 	//+kubebuilder:validation:Optional
 	SharedCache SharedCache `json:"sharedCache"`
+
+	//+kubebuilder:validation:Optional
+	ScalingSpec ScalingSpec `json:"scaling"`
 	// TODO add imageOverride
 }
+
+type RepositoryPath string
 
 // RenovateStatus defines the observed state of Renovate
 type RenovateStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
+
+	DiscoveredRepositories []RepositoryPath `json:"discoveredDepositories"`
 }
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
+//+kubebuilder:resource:shortName=ren
 //+kubebuilder:printcolumn:name="Suspended",type=boolean,JSONPath=`.spec.suspend`
-//+kubebuilder:printcolumn:name="DryRun",type=boolean,JSONPath=`.spec.dryRun`
-//+kubebuilder:printcolumn:name="Version",type=string,JSONPath=`.spec.version`
+//+kubebuilder:printcolumn:name="DryRun",type=boolean,JSONPath=`.spec.renovate.dryRun`
+//+kubebuilder:printcolumn:name="Version",type=string,JSONPath=`.spec.renovate.version`
+//Renovate crd object
 type Renovate struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
